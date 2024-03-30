@@ -49,6 +49,12 @@ private:
 
 	// The list of local maximas.
 	std::vector<Point> m_maximas {};
+	
+	// The list of edge cases of last round.
+	std::vector<Point> last_edge_cases {};
+	
+	// Temporary storage of edge cases.
+	std::vector<Point> edge_cases {};
 
 	// The list of spanned clusters.
 	std::vector<Box> m_clusters {};
@@ -106,6 +112,7 @@ public:
 
 		contacts.clear();
 		m_clusters.clear();
+		edge_cases.clear();
 		m_fitting_params.clear();
 
 		// Recalculate the neutral value if neccessary
@@ -130,8 +137,8 @@ public:
 		// Search for local maximas
 		maximas::find(m_img_blurred, athresh, m_maximas);
 
-		// Iterate over the maximas and start building clusters
-		for (const Point &point : m_maximas) {
+		// Iterate over the last edge cases to see if they have declined below 3
+		for (const Point &point : last_edge_cases) {
 			Box cluster = cluster::span(m_img_blurred, point, athresh, dthresh);
 
 			if (cluster.isEmpty())
@@ -147,7 +154,31 @@ public:
 			// For gaussian fitting, the clusters should have at least 3x3 pixels
 			if (size.x() < 3 || size.y() < 3)
 				continue;
+			if (size.x() >= 4 && size.y() >= 4)
+				continue;
 
+			edge_cases.push_back(std::move(point));
+			m_clusters.push_back(std::move(cluster));
+		}
+		
+		last_edge_cases = edge_cases;
+		
+		// Iterate over the maximas and start building clusters
+		for (const Point &point : m_maximas) {
+			Box cluster = cluster::span(m_img_blurred, point, athresh, dthresh);
+
+			if (cluster.isEmpty())
+				continue;
+
+			cluster.min() = (cluster.min() - one).cwiseMax(0);
+			cluster.max() = (cluster.max() + one).cwiseMin(dimensions);
+
+			const Vector2<Eigen::Index> size = cluster.sizes() + one;
+
+			if (size.x() < 4 || size.y() < 4)
+				continue;
+
+			last_edge_cases.push_back(std::move(point));
 			m_clusters.push_back(std::move(cluster));
 		}
 

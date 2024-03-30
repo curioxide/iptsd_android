@@ -80,14 +80,14 @@ private:
 
 		const Contact<T> &last = wrapper.value();
 
-		if (m_config.size_threshold.has_value())
-			this->stabilize_size(contact, last);
+		// if (m_config.size_threshold.has_value())
+		//	this->stabilize_size(contact, last);
 
 		if (m_config.position_threshold.has_value())
 			this->stabilize_position(contact, last);
 
-		if (m_config.orientation_threshold.has_value())
-			this->stabilize_orientation(contact, last);
+		// if (m_config.orientation_threshold.has_value())
+		//	this->stabilize_orientation(contact, last);
 	}
 
 	/*!

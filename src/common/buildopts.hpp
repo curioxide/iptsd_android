@@ -13,7 +13,11 @@ namespace iptsd::common::buildopts {
  * Because the include is quite "magic" - as in, the file doesn't normally exist - we
  * only allow including it here, and wrap it's contents in properly typed C++.
  */
-#include <configure.h>
+#ifdef __ANDROID__
+#include "android_configure.h"
+#else
+#include "configure.h"
+#endif
 
 /*!
  * The main iptsd config file.
