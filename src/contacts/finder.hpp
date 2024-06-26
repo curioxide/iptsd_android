@@ -70,7 +70,7 @@ public:
 		m_detector.detect(heatmap, contacts);
 		m_tracker.track(contacts);
 		m_stabilizer.stabilize(contacts);
-		m_validator.validate(contacts);
+		// m_validator.validate(contacts);
 	}
 };
 

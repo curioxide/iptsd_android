@@ -20,6 +20,7 @@ IPTSD_HEADER_LIBRARIES := libeigen inih_headers cli11 fmtlib9_headers\
 
 #build iptsd-calibrate
 include $(CLEAR_VARS)
+LOCAL_RTTI_FLAG := -frtti
 LOCAL_CPPFLAGS := $(IPTSD_CPPFLAGS)
 LOCAL_SRC_FILES := $(call all-cpp-files-under, src/apps/calibrate)
 LOCAL_MODULE := iptsd-calibrate
@@ -32,6 +33,7 @@ include $(BUILD_EXECUTABLE)
 
 #build iptsd-check-device
 include $(CLEAR_VARS)
+LOCAL_RTTI_FLAG := -frtti
 LOCAL_CPPFLAGS := $(IPTSD_CPPFLAGS)
 LOCAL_SRC_FILES := $(call all-cpp-files-under, src/apps/check-device)
 LOCAL_MODULE := iptsd-check-device
@@ -44,6 +46,7 @@ include $(BUILD_EXECUTABLE)
 
 #build iptsd-dump
 include $(CLEAR_VARS)
+LOCAL_RTTI_FLAG := -frtti
 LOCAL_CPPFLAGS := $(IPTSD_CPPFLAGS)
 LOCAL_SRC_FILES := $(call all-cpp-files-under, src/apps/dump)
 LOCAL_MODULE := iptsd-dump
@@ -56,6 +59,7 @@ include $(BUILD_EXECUTABLE)
 
 #build iptsd-perf
 include $(CLEAR_VARS)
+LOCAL_RTTI_FLAG := -frtti
 LOCAL_CPPFLAGS := $(IPTSD_CPPFLAGS)
 LOCAL_SRC_FILES := $(call all-cpp-files-under, src/apps/perf)
 LOCAL_MODULE := iptsd-perf
@@ -68,6 +72,7 @@ include $(BUILD_EXECUTABLE)
 
 #build iptsd
 include $(CLEAR_VARS)
+LOCAL_RTTI_FLAG := -frtti
 LOCAL_CPPFLAGS := $(IPTSD_CPPFLAGS)
 LOCAL_SRC_FILES := $(call all-cpp-files-under, src/apps/daemon)
 LOCAL_MODULE := iptsd

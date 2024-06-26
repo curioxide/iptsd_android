@@ -138,6 +138,10 @@ public:
 
 		// Iterate over the last edge cases to see if they have declined below 3
 		for (const Point &point : last_edge_cases) {
+			if (m_img_blurred(point.y(), point.x()) < athresh) {
+				continue;
+			}
+			
 			Box cluster = cluster::span(m_img_blurred, point, athresh, dthresh);
 
 			if (cluster.isEmpty())
