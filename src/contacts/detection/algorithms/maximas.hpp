@@ -9,6 +9,49 @@
 
 namespace iptsd::contacts::detection::maximas {
 
+template <class Derived>
+void check_point(const DenseBase<Derived> &data, std::vector<Point> &maximas, Eigen::Index y, Eigen::Index x, Eigen::Index cols, Eigen::Index rows)
+{
+	using T = typename DenseBase<Derived>::Scalar;
+	const T value = data(y, x);
+	bool max = true;
+
+	const bool can_up = y > 0;
+	const bool can_down = y < rows;
+	
+	const bool can_left = x > 0;
+	const bool can_right = x < cols;
+	
+	if (can_left)
+		max &= data(y, x - 1) < value;
+
+	if (can_right)
+		max &= data(y, x + 1) <= value;
+
+	if (can_up) {
+		max &= data(y - 1, x) < value;
+
+		if (can_left)
+			max &= data(y - 1, x - 1) < value;
+
+		if (can_right)
+			max &= data(y - 1, x + 1) <= value;
+	}
+
+	if (can_down) {
+		max &= data(y + 1, x) <= value;
+
+		if (can_left)
+			max &= data(y + 1, x - 1) < value;
+
+		if (can_right)
+			max &= data(y + 1, x + 1) <= value;
+	}
+
+	if (max)
+		maximas.emplace_back(x, y);
+}
+
 /*!
  * Searches for all local maxima in the given data.
  *
@@ -21,7 +64,6 @@ void find(const DenseBase<Derived> &data,
           typename DenseBase<Derived>::Scalar threshold,
           std::vector<Point> &maximas)
 {
-	using T = typename DenseBase<Derived>::Scalar;
 
 	/*
 	 * We use the following kernel to compare entries:
@@ -35,55 +77,46 @@ void find(const DenseBase<Derived> &data,
 	 * report some multiple times.
 	 */
 
-	const Eigen::Index cols = data.cols();
-	const Eigen::Index rows = data.rows();
+	const Eigen::Index cols = data.cols() - 1;
+	const Eigen::Index rows = data.rows() - 1;
 
 	maximas.clear();
-
-	for (Eigen::Index y = 0; y < rows; y++) {
-		const bool can_up = y > 0;
-		const bool can_down = y < rows - 1;
-
-		for (Eigen::Index x = 0; x < cols; x++) {
-			const T value = data(y, x);
-
-			if (value <= threshold)
-				continue;
-
-			bool max = true;
-
-			const bool can_left = x > 0;
-			const bool can_right = x < cols - 1;
-
-			if (can_left)
-				max &= data(y, x - 1) < value;
-
-			if (can_right)
-				max &= data(y, x + 1) <= value;
-
-			if (can_up) {
-				max &= data(y - 1, x) < value;
-
-				if (can_left)
-					max &= data(y - 1, x - 1) < value;
-
-				if (can_right)
-					max &= data(y - 1, x + 1) <= value;
-			}
-
-			if (can_down) {
-				max &= data(y + 1, x) <= value;
-
-				if (can_left)
-					max &= data(y + 1, x - 1) < value;
-
-				if (can_right)
-					max &= data(y + 1, x + 1) <= value;
-			}
-
-			if (max)
-				maximas.emplace_back(x, y);
+	
+	Eigen::Index y_up = 0;
+	Eigen::Index y_down = rows;
+	
+	Eigen::Index x_left = 0;
+	Eigen::Index x_right = cols;
+	
+	while (y_up < y_down) {
+		
+		if (x_left >= x_right) {
+			y_up++;
+			y_down--;
+			x_left = 0;
+			x_right = cols;
+			continue;
 		}
+		
+		if (data(y_up, x_left) > threshold) {
+			
+			check_point(data, maximas, y_up, x_left, cols, rows);
+		}
+		if (data(y_up, x_right) > threshold) {
+		
+			check_point(data, maximas, y_up, x_right, cols, rows);
+		}
+		if (data(y_down, x_left) > threshold) {
+		
+			check_point(data, maximas, y_down, x_left, cols, rows);
+		}
+		if (data(y_down, x_right) > threshold) {
+		
+			check_point(data, maximas, y_down, x_right, cols, rows);
+		}
+		
+		x_left++;
+		x_right--;
 	}
 }
 
