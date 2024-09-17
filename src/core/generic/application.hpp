@@ -12,8 +12,11 @@
 #include <common/error.hpp>
 #include <common/types.hpp>
 #include <contacts/finder.hpp>
-#include <ipts/data.hpp>
 #include <ipts/parser.hpp>
+#include <ipts/samples/button.hpp>
+#include <ipts/samples/dft.hpp>
+#include <ipts/samples/stylus.hpp>
+#include <ipts/samples/touch.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -52,13 +55,6 @@ protected:
 	DeviceInfo m_info;
 
 	/*
-	 * The IPTS device metadata. This does not exist on all devices.
-	 * This needs to be queried by the application runner
-	 * and passed to the application during construction.
-	 */
-	std::optional<const ipts::Metadata> m_metadata = std::nullopt;
-
-	/*
 	 * Parses incoming data and returns heatmap, stylus and DFT data.
 	 */
 	ipts::Parser m_parser {};
@@ -89,21 +85,19 @@ protected:
 	DftStylus m_dft;
 
 public:
-	Application(const Config &config,
-	            const DeviceInfo &info,
-	            const std::optional<const ipts::Metadata> &metadata)
+	Application(const Config &config, const DeviceInfo &info)
 		: m_config {config},
 		  m_info {info},
-		  m_metadata {metadata},
 		  m_finder {config.contacts()},
-		  m_dft {config, metadata}
+		  m_dft {config, info}
 	{
 		if (m_config.width == 0 || m_config.height == 0)
 			throw common::Error<Error::InvalidScreenSize> {};
 
-		m_parser.on_heatmap = [&](const auto &data) { this->process_heatmap(data); };
+		m_parser.on_touch = [&](const auto &data) { this->process_touch(data); };
 		m_parser.on_stylus = [&](const auto &data) { this->process_stylus(data); };
 		m_parser.on_dft = [&](const auto &data) { this->process_dft(data); };
+		m_parser.on_button = [&](const auto &data) { this->process_button(data); };
 	}
 
 	virtual ~Application() = default;
@@ -141,12 +135,17 @@ protected:
 	/*!
 	 * For running application specific code that further processes touch inputs.
 	 */
-	virtual void on_contacts(const std::vector<contacts::Contact<f64>> & /* unused */) {};
+	virtual void on_touch(const std::vector<contacts::Contact<f64>> & /* unused */) {};
 
 	/*!
 	 * For running application specific code that futher processes stylus inputs.
 	 */
-	virtual void on_stylus(const ipts::StylusData & /* unused */) {};
+	virtual void on_stylus(const ipts::samples::Stylus & /* unused */) {};
+
+	/*!
+	 * For running application specific code that further processes button clicks.
+	 */
+	virtual void on_button(const ipts::samples::Button & /* unused */) {};
 
 private:
 	/*!
@@ -157,7 +156,7 @@ private:
 	 *
 	 * @param[in] data The data to process.
 	 */
-	void process_heatmap(const ipts::Heatmap &data)
+	void process_touch(const ipts::samples::Touch &data)
 	{
 		const Eigen::Index rows = casts::to_eigen(data.rows);
 		const Eigen::Index cols = casts::to_eigen(data.columns);
@@ -170,7 +169,7 @@ private:
 			m_heatmap.conservativeResize(rows, cols);
 
 		// Map the buffer to an Eigen container
-		const Eigen::Map<const Image<u8>> mapped {data.data.data(), rows, cols};
+		const Eigen::Map<const Image<u8>> mapped {data.heatmap.data(), rows, cols};
 
 		const auto min = casts::to<f64>(data.min);
 		const auto max = casts::to<f64>(data.max);
@@ -197,7 +196,7 @@ private:
 		}
 
 		// Hand off the found contacts to the handler code.
-		this->on_contacts(m_contacts);
+		this->on_touch(m_contacts);
 	}
 
 	/*!
@@ -205,9 +204,12 @@ private:
 	 *
 	 * @param[in] data The data to process.
 	 */
-	void process_stylus(const ipts::StylusData &data)
+	void process_stylus(const ipts::samples::Stylus &data)
 	{
-		ipts::StylusData corrected = data;
+		if (!m_info.is_touchscreen())
+			return;
+
+		ipts::samples::Stylus corrected = data;
 
 		// Correct position based on tip-transmitter distance
 		const Vector2<f64> off = this->calculate_offset(data.altitude, data.azimuth);
@@ -226,10 +228,29 @@ private:
 	 *
 	 * @param[in] data The DFT window to process.
 	 */
-	void process_dft(const ipts::DftWindow &data)
+	void process_dft(const ipts::samples::DftWindow &data)
 	{
+		if (!m_info.is_touchscreen())
+			return;
+
 		m_dft.input(data);
 		this->process_stylus(m_dft.get_stylus());
+	}
+
+	/*!
+	 * Handles incoming button clicks.
+	 *
+	 * A button sample describes the state of the left / right click button on
+	 * IPTS touchpads.
+	 *
+	 * @param[in] data The data to process.
+	 */
+	void process_button(const ipts::samples::Button &data)
+	{
+		if (!m_info.is_touchpad())
+			return;
+
+		this->on_button(data);
 	}
 
 	/*!

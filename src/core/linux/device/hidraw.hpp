@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#ifndef IPTSD_CORE_LINUX_HIDRAW_DEVICE_HPP
-#define IPTSD_CORE_LINUX_HIDRAW_DEVICE_HPP
+#ifndef IPTSD_CORE_LINUX_DEVICE_HIDRAW_HPP
+#define IPTSD_CORE_LINUX_DEVICE_HIDRAW_HPP
 
-#include "syscalls.hpp"
+#include "../syscalls.hpp"
 
 #include <common/casts.hpp>
 #include <common/types.hpp>
@@ -17,22 +17,19 @@
 #include <linux/hidraw.h>
 
 #include <filesystem>
-#include <vector>
 
-namespace iptsd::core::linux {
+namespace iptsd::core::linux::device {
 
-class HidrawDevice : public hid::Device {
-private:
+class Hidraw : public hid::Device {
+protected:
 	int m_fd = -1;
 	std::filesystem::path m_path {};
 
 	struct hidraw_devinfo m_devinfo {};
 	struct hidraw_report_descriptor m_desc {};
 
-	std::vector<hid::Report> m_reports {};
-
 public:
-	HidrawDevice(const std::filesystem::path &path)
+	Hidraw(const std::filesystem::path &path)
 		: m_fd {syscalls::open(path, O_RDWR)},
 		  m_path {path}
 	{
@@ -43,11 +40,9 @@ public:
 
 		m_desc.size = desc_size;
 		syscalls::ioctl(m_fd, HIDIOCGRDESC, &m_desc);
-
-		hid::parse(gsl::span<u8> {&m_desc.value[0], desc_size}, m_reports);
 	}
 
-	~HidrawDevice() override
+	~Hidraw() override
 	{
 		try {
 			syscalls::close(m_fd);
@@ -89,11 +84,11 @@ public:
 	}
 
 	/*!
-	 * The HID descriptor of the device.
+	 * The binary HID descriptor of the device.
 	 */
-	const std::vector<hid::Report> &descriptor() override
+	gsl::span<u8> raw_descriptor() override
 	{
-		return m_reports;
+		return gsl::span<u8> {&m_desc.value[0], m_desc.size};
 	}
 
 	/*!
@@ -102,7 +97,7 @@ public:
 	 * @param[in] buffer The target storage for the report.
 	 * @return The size of the report that was read in bytes.
 	 */
-	isize read(gsl::span<u8> buffer) override
+	usize read(gsl::span<u8> buffer) override
 	{
 		return syscalls::read(m_fd, buffer);
 	}
@@ -128,6 +123,6 @@ public:
 	}
 };
 
-} // namespace iptsd::core::linux
+} // namespace iptsd::core::linux::device
 
-#endif // IPTSD_CORE_LINUX_HIDRAW_DEVICE_HPP
+#endif // IPTSD_CORE_LINUX_DEVICE_HIDRAW_HPP

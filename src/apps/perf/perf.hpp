@@ -8,12 +8,10 @@
 #include <contacts/finder.hpp>
 #include <core/generic/application.hpp>
 #include <core/generic/config.hpp>
-#include <ipts/data.hpp>
 
 #include <gsl/gsl>
 
 #include <algorithm>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -32,17 +30,15 @@ public:
 	clock::duration max = clock::duration::min();
 
 private:
-	bool m_had_heatmap {};
+	bool m_had_touch {};
 
 public:
-	Perf(const core::Config &config,
-	     const core::DeviceInfo &info,
-	     const std::optional<const ipts::Metadata> &metadata)
-		: core::Application(config, info, metadata) {};
+	Perf(const core::Config &config, const core::DeviceInfo &info)
+		: core::Application(config, info) {};
 
-	void on_contacts(const std::vector<contacts::Contact<f64>> & /* unused */) override
+	void on_touch(const std::vector<contacts::Contact<f64>> & /* unused */) override
 	{
-		m_had_heatmap = true;
+		m_had_touch = true;
 	}
 
 	void on_data(const gsl::span<u8> data) override
@@ -53,7 +49,7 @@ public:
 		// Send the report to the finder through the parser for processing
 		core::Application::on_data(data);
 
-		if (std::exchange(m_had_heatmap, false)) {
+		if (std::exchange(m_had_touch, false)) {
 			// Take end time
 			const clock::time_point end = clock::now();
 			const clock::duration x_ns = end - start;

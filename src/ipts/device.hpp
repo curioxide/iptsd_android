@@ -3,8 +3,8 @@
 #ifndef IPTSD_IPTS_DEVICE_HPP
 #define IPTSD_IPTS_DEVICE_HPP
 
-#include "data.hpp"
 #include "descriptor.hpp"
+#include "metadata.hpp"
 #include "parser.hpp"
 
 #include <common/error.hpp>
@@ -42,14 +42,20 @@ inline std::string format_as(DeviceError err)
 
 } // namespace impl
 
-enum class Mode : u8 {
-	Singletouch = 0,
-	Multitouch = 1,
-};
-
 class Device {
 public:
 	using Error = impl::DeviceError;
+
+public:
+	enum class Mode : u8 {
+		Singletouch = 0,
+		Multitouch = 1,
+	};
+
+	enum class Type : u8 {
+		Touchscreen,
+		Touchpad,
+	};
 
 private:
 	// The (platform specific) HID device interface
@@ -85,18 +91,44 @@ public:
 	}
 
 	/*!
+	 * What kind of device this is.
+	 *
+	 * IPTS supports touchscreens as well as touchpads. Touchpads need to be handled a bit
+	 * differently, since there is no stylus, and instead two buttons for left and right click.
+	 *
+	 * The devices contain fallback reports in their HID descriptor that get used if no
+	 * userspace processing is running. By searching for them we can determine the device type.
+	 *
+	 * @return The type of the IPTS device we are connected to.
+	 */
+	[[nodiscard]] Type type() const
+	{
+		const bool is_touchscreen = m_descriptor.is_touchscreen();
+		const bool is_touchpad = m_descriptor.is_touchpad();
+
+		// If both are true, or both are false, something is wrong.
+		if (is_touchpad == is_touchscreen)
+			throw common::Error<Error::InvalidDevice> {m_hid->name()};
+
+		if (is_touchpad)
+			return Type::Touchpad;
+
+		return Type::Touchscreen;
+	}
+
+	/*!
 	 * Determines the required size for a buffer holding IPTS touch data.
 	 *
 	 * @return The size of the largest touch data report that IPTS can send.
 	 */
 	[[nodiscard]] usize buffer_size() const
 	{
-		u64 size = 0;
+		usize size = 0;
 
 		for (const hid::Report &report : m_touch_data_reports)
-			size = std::max(size, report.size());
+			size = std::max(size, report.bytes());
 
-		return casts::to<usize>(size / 8);
+		return size;
 	}
 
 	/*!
@@ -112,11 +144,11 @@ public:
 		if (!report.has_value())
 			return std::nullopt;
 
-		const std::optional<u8> id = report->id();
+		const std::optional<u8> id = report->report_id;
 		if (!id.has_value())
 			return std::nullopt;
 
-		std::vector<u8> buffer((report->size() / 8) + 1);
+		std::vector<u8> buffer(report->bytes() + 1);
 		buffer[0] = id.value();
 
 		m_hid->get_feature(buffer);
@@ -141,7 +173,7 @@ public:
 		if (!report.has_value())
 			throw common::Error<Error::InvalidDevice> {m_hid->name()};
 
-		const std::optional<u8> id = report->id();
+		const std::optional<u8> id = report->report_id;
 		if (!id.has_value())
 			throw common::Error<Error::InvalidSetModeReport> {m_hid->name()};
 
@@ -163,7 +195,7 @@ public:
 		return std::any_of(
 			m_touch_data_reports.cbegin(),
 			m_touch_data_reports.cend(),
-			[&](const hid::Report &report) { return report.id() == buffer[0]; });
+			[&](const hid::Report &report) { return report.report_id == buffer[0]; });
 	}
 };
 

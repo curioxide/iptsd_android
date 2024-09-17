@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "dump.hpp"
-
 #include <common/types.hpp>
-#include <core/linux/device-runner.hpp>
+#include <core/linux/device/capture.hpp>
+#include <core/linux/runner.hpp>
 #include <core/linux/signal-handler.hpp>
 
 #include <CLI/CLI.hpp>
@@ -21,24 +20,18 @@ namespace {
 
 int run(const int argc, const char **argv)
 {
-	CLI::App app {"Utility for saving raw reports from your touchscreen to a binary file."};
+	CLI::App app {"Utility for saving raw reports from your touchscreen to a binary file"};
 
 	std::filesystem::path path {};
 	app.add_option("DEVICE", path)
-		->description("The hidraw device node of the touchscreen.")
-		->type_name("FILE")
-		->required();
-
-	std::filesystem::path output {};
-	app.add_option("OUTPUT", output)
-		->description("The file in which the data will be saved.")
+		->description("The hidraw device node of the touchscreen")
 		->type_name("FILE")
 		->required();
 
 	CLI11_PARSE(app, argc, argv);
 
 	// Create a dumping application that reads from a device.
-	core::linux::DeviceRunner<Dump> dump {path, output};
+	core::linux::Runner<core::Application, core::linux::device::Capture> dump {path};
 
 	const auto _sigterm = core::linux::signal<SIGTERM>([&](int) { dump.stop(); });
 	const auto _sigint = core::linux::signal<SIGINT>([&](int) { dump.stop(); });

@@ -4,14 +4,13 @@
 #define IPTSD_CORE_LINUX_DEVICE_RUNNER_HPP
 
 #include "config-loader.hpp"
+#include "device/errors.hpp"
 #include "errors.hpp"
-#include "hidraw-device.hpp"
 
 #include <common/casts.hpp>
 #include <common/chrono.hpp>
 #include <common/error.hpp>
 #include <core/generic/application.hpp>
-#include <ipts/data.hpp>
 #include <ipts/device.hpp>
 
 #include <spdlog/spdlog.h>
@@ -25,14 +24,22 @@
 
 namespace iptsd::core::linux {
 
-template <class T>
-class DeviceRunner {
+/*!
+ * The application runner is responsible for connecting a generic application with the
+ * hardware and platform specific implementation details.
+ *
+ * @tparam App The application type that is being run.
+ * @tparam Device The type that implements the HID data source.
+ */
+template <class App, class Device>
+class Runner {
 private:
-	static_assert(std::is_base_of_v<Application, T>);
+	static_assert(std::is_base_of_v<Application, App>);
+	static_assert(std::is_base_of_v<hid::Device, Device>);
 
 private:
 	// The hidraw device serving as the source of data.
-	std::shared_ptr<HidrawDevice> m_device;
+	std::shared_ptr<hid::Device> m_device;
 
 	// The IPTS touchscreen interface
 	ipts::Device m_ipts;
@@ -48,30 +55,38 @@ private:
 	 */
 
 	// The application that is being executed.
-	std::optional<T> m_application = std::nullopt;
+	std::optional<App> m_application = std::nullopt;
 
 public:
 	template <class... Args>
-	DeviceRunner(const std::filesystem::path &path, Args... args)
-		: m_device {std::make_shared<HidrawDevice>(path)},
+	Runner(const std::filesystem::path &path, Args... args)
+		: m_device {std::make_shared<Device>(path)},
 		  m_ipts {m_device}
 	{
 		DeviceInfo info {};
 		info.vendor = m_device->vendor();
 		info.product = m_device->product();
-		info.buffer_size = m_ipts.buffer_size();
+		info.type = m_ipts.type();
+		info.meta = m_ipts.metadata();
 
-		const std::optional<const ipts::Metadata> meta = m_ipts.metadata();
+		const ConfigLoader loader {info};
+		m_application.emplace(loader.config(), info, args...);
 
-		const ConfigLoader loader {info, meta};
-		m_application.emplace(loader.config(), info, meta, args...);
-
-		m_buffer.resize(casts::to<usize>(info.buffer_size));
+		m_buffer.resize(m_ipts.buffer_size());
 
 		const u16 vendor = info.vendor;
 		const u16 product = info.product;
 
 		spdlog::info("Connected to device {:04X}:{:04X}", vendor, product);
+
+		switch (info.type) {
+		case ipts::Device::Type::Touchscreen:
+			spdlog::info("Running in Touchscreen mode");
+			break;
+		case ipts::Device::Type::Touchpad:
+			spdlog::info("Running in Touchpad mode");
+			break;
+		}
 	}
 
 	/*!
@@ -81,7 +96,7 @@ public:
 	 *
 	 * @return A reference to the application instance that is being run.
 	 */
-	T &application()
+	App &application()
 	{
 		if (!m_application.has_value())
 			throw common::Error<Error::RunnerInitError> {};
@@ -100,9 +115,10 @@ public:
 	}
 
 	/*!
-	 * Starts reading from the device in an endless loop.
+	 * Starts reading from the device, until the device signals that no more data is available.
 	 *
 	 * Touch data that is read will be passed to the application that is being executed.
+	 * Depending on the HID data source, this method can be called multiple times in a row.
 	 */
 	bool run()
 	{
@@ -110,7 +126,7 @@ public:
 			throw common::Error<Error::RunnerInitError> {};
 
 		// Enable multitouch mode
-		m_ipts.set_mode(ipts::Mode::Multitouch);
+		m_ipts.set_mode(ipts::Device::Mode::Multitouch);
 
 		// Signal the application that the data flow has started.
 		m_application->on_start();
@@ -124,15 +140,16 @@ public:
 			}
 
 			try {
-				const isize size = m_device->read(m_buffer);
-				const gsl::span<u8> data {m_buffer.data(),
-				                          casts::to_unsigned(size)};
+				const usize size = m_device->read(m_buffer);
+				const gsl::span<u8> data {m_buffer.data(), size};
 
 				// Does this report contain touch data?
 				if (!m_ipts.is_touch_data(m_buffer))
 					continue;
 
 				m_application->process(data);
+			} catch (const common::Error<device::Error::EndOfData> & /* unused */) {
+				break;
 			} catch (const std::exception &e) {
 				spdlog::warn(e.what());
 
@@ -147,14 +164,12 @@ public:
 			errors = 0;
 		}
 
-		spdlog::info("Stopping");
-
 		// Signal the application that the data flow has stopped.
 		m_application->on_stop();
 
 		try {
 			// Disable multitouch mode
-			m_ipts.set_mode(ipts::Mode::Singletouch);
+			m_ipts.set_mode(ipts::Device::Mode::Singletouch);
 		} catch (const std::exception &e) {
 			spdlog::error(e.what());
 		}

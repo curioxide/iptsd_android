@@ -18,6 +18,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <set>
 #include <string>
 #include <type_traits>
 
@@ -31,18 +32,17 @@ private:
 	bool m_loaded_config = false;
 
 public:
-	ConfigLoader(const DeviceInfo &info, const std::optional<const ipts::Metadata> &metadata)
-		: m_info {info}
+	ConfigLoader(const DeviceInfo &info) : m_info {info}
 	{
-		if (metadata.has_value()) {
-			m_config.width = casts::to<f64>(metadata->dimensions.width) / 1e3;
-			m_config.height = casts::to<f64>(metadata->dimensions.height) / 1e3;
-			m_config.invert_x = metadata->transform.xx < 0;
-			m_config.invert_y = metadata->transform.yy < 0;
+		if (m_info.meta.has_value()) {
+			m_config.width = m_info.meta->width;
+			m_config.height = m_info.meta->height;
+			m_config.invert_x = m_info.meta->invert_x;
+			m_config.invert_y = m_info.meta->invert_y;
 		}
 
-		this->load_dir(common::buildopts::PresetDir, true);
-		this->load_dir("./etc/presets", true);
+		this->load_dir(common::buildopts::PresetDir);
+		this->load_dir("./etc/presets");
 
 		/*
 		 * Load configuration file from custom location.
@@ -55,10 +55,8 @@ public:
 			return;
 		}
 
-		if (std::filesystem::exists(common::buildopts::ConfigFile))
-			this->load_file(common::buildopts::ConfigFile);
-
-		this->load_dir(common::buildopts::ConfigDir, false);
+		this->load_file(common::buildopts::ConfigFile);
+		this->load_dir(common::buildopts::ConfigDir);
 
 		if (!m_loaded_config)
 			spdlog::info("No config file loaded, using default values.");
@@ -81,25 +79,29 @@ private:
 	 * @param[in] path The path to the directory.
 	 * @param[in] check_device If true, check if the config is meant for the current device.
 	 */
-	void load_dir(const std::filesystem::path &path, const bool check_device)
+	void load_dir(const std::filesystem::path &path)
 	{
 		if (!std::filesystem::exists(path))
 			return;
 
-		for (const auto &p : std::filesystem::directory_iterator(path)) {
+		std::set<std::filesystem::directory_entry> files {};
+
+		// Sort files by their filename
+		for (const auto &p : std::filesystem::directory_iterator(path))
+			files.insert(p);
+
+		for (const auto &p : files) {
 			if (!p.is_regular_file())
 				continue;
 
-			if (check_device) {
-				u16 vendor = 0;
-				u16 product = 0;
+			u16 vendor = m_info.vendor;
+			u16 product = m_info.product;
 
-				this->load_device(p.path(), vendor, product);
+			this->load_device(p.path(), vendor, product);
 
-				// Ignore this file if it is meant for a different device.
-				if (m_info.vendor != vendor || m_info.product != product)
-					continue;
-			}
+			// Ignore this file if it is meant for a different device.
+			if (m_info.vendor != vendor || m_info.product != product)
+				continue;
 
 			this->load_file(p.path());
 		}
@@ -114,13 +116,13 @@ private:
 	 */
 	void load_device(const std::filesystem::path &path, u16 &vendor, u16 &product) const
 	{
+		if (!std::filesystem::exists(path))
+			return;
+
 		const INIReader ini {path};
 
 		if (ini.ParseError() != 0)
 			throw common::Error<Error::ParsingFailed> {path.c_str()};
-
-		vendor = 0;
-		product = 0;
 
 		this->get(ini, "Device", "Vendor", vendor);
 		this->get(ini, "Device", "Product", product);
@@ -133,6 +135,9 @@ private:
 	 */
 	void load_file(const std::filesystem::path &path)
 	{
+		if (!std::filesystem::exists(path))
+			return;
+
 		spdlog::info("Loading config {}.", path.c_str());
 
 		const INIReader ini {path};
@@ -147,10 +152,14 @@ private:
 		this->get(ini, "Config", "Width", m_config.width);
 		this->get(ini, "Config", "Height", m_config.height);
 
-		this->get(ini, "Touch", "Disable", m_config.touch_disable);
-		this->get(ini, "Touch", "DisableOnPalm", m_config.touch_disable_on_palm);
-		this->get(ini, "Touch", "DisableOnStylus", m_config.touch_disable_on_stylus);
-		this->get(ini, "Touch", "Overshoot", m_config.touch_overshoot);
+		this->get(ini, "Touchscreen", "Disable", m_config.touchscreen_disable);
+		this->get(ini, "Touchscreen", "DisableOnPalm", m_config.touchscreen_disable_on_palm);
+		this->get(ini, "Touchscreen", "DisableOnStylus", m_config.touchscreen_disable_on_stylus);
+		this->get(ini, "Touchscreen", "Overshoot", m_config.touchscreen_overshoot);
+
+		this->get(ini, "Touchpad", "Disable", m_config.touchpad_disable);
+		this->get(ini, "Touchpad", "DisableOnPalm", m_config.touchpad_disable_on_palm);
+		this->get(ini, "Touchpad", "Overshoot", m_config.touchpad_overshoot);
 
 		this->get(ini, "Contacts", "Neutral", m_config.contacts_neutral);
 		this->get(ini, "Contacts", "NeutralValue", m_config.contacts_neutral_value);
@@ -183,6 +192,10 @@ private:
 		// Legacy options that are kept for compatibility
 		this->get(ini, "DFT", "TipDistance", m_config.stylus_tip_distance);
 		this->get(ini, "Contacts", "SizeThreshold", m_config.contacts_size_thresh_max);
+		this->get(ini, "Touch", "Disable", m_config.touchscreen_disable);
+		this->get(ini, "Touch", "DisableOnPalm", m_config.touchscreen_disable_on_palm);
+		this->get(ini, "Touch", "DisableOnStylus", m_config.touchscreen_disable_on_stylus);
+		this->get(ini, "Touch", "Overshoot", m_config.touchscreen_overshoot);
 
 		// clang-format on
 		m_loaded_config = true;

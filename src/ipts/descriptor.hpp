@@ -6,20 +6,21 @@
 #include "protocol/descriptor.hpp"
 
 #include <common/types.hpp>
+#include <hid/descriptor.hpp>
 #include <hid/report.hpp>
-#include <hid/usage.hpp>
 
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace iptsd::ipts {
 
 class Descriptor {
 private:
-	std::vector<hid::Report> m_reports {};
+	hid::Descriptor m_hid_descriptor;
 
 public:
-	Descriptor(const std::vector<hid::Report> &reports) : m_reports {reports} {};
+	Descriptor(hid::Descriptor desc) : m_hid_descriptor {std::move(desc)} {};
 
 	/*!
 	 * Searches for all reports that contain touch data in the HID descriptor.
@@ -28,14 +29,7 @@ public:
 	 */
 	[[nodiscard]] std::vector<hid::Report> find_touch_data_reports() const
 	{
-		std::vector<hid::Report> out {};
-
-		for (const hid::Report &report : m_reports) {
-			if (protocol::descriptor::is_touch_data(report))
-				out.push_back(report);
-		}
-
-		return out;
+		return m_hid_descriptor.find_reports(protocol::descriptor::is_touch_data);
 	}
 
 	/*!
@@ -48,12 +42,7 @@ public:
 	 */
 	[[nodiscard]] std::optional<hid::Report> find_modesetting_report() const
 	{
-		for (const hid::Report &report : m_reports) {
-			if (protocol::descriptor::is_set_mode(report))
-				return report;
-		}
-
-		return std::nullopt;
+		return m_hid_descriptor.find_report(protocol::descriptor::is_set_mode);
 	}
 
 	/*!
@@ -66,12 +55,23 @@ public:
 	 */
 	[[nodiscard]] std::optional<hid::Report> find_metadata_report() const
 	{
-		for (const hid::Report &report : m_reports) {
-			if (protocol::descriptor::is_metadata(report))
-				return report;
-		}
+		return m_hid_descriptor.find_report(protocol::descriptor::is_metadata);
+	}
 
-		return std::nullopt;
+	/*!
+	 * Whether the HID descriptor indicates that this device is a touchscreen.
+	 */
+	[[nodiscard]] bool is_touchscreen() const
+	{
+		return m_hid_descriptor.has_collection(protocol::descriptor::is_touchscreen);
+	}
+
+	/*!
+	 * Whether the HID descriptor indicates that this device is a touchpad.
+	 */
+	[[nodiscard]] bool is_touchpad() const
+	{
+		return m_hid_descriptor.has_collection(protocol::descriptor::is_touchpad);
 	}
 };
 

@@ -9,7 +9,7 @@
 #include <core/generic/application.hpp>
 #include <core/generic/config.hpp>
 #include <core/generic/device.hpp>
-#include <ipts/data.hpp>
+#include <ipts/samples/stylus.hpp>
 
 #include <cairomm/cairomm.h>
 #include <gsl/gsl>
@@ -29,7 +29,7 @@ private:
 	Image<u32> m_argb {};
 
 	// The last known state of the stylus.
-	std::deque<ipts::StylusData> m_history {};
+	std::deque<ipts::samples::Stylus> m_history {};
 
 protected:
 	// The size of the texture we are drawing to.
@@ -39,12 +39,10 @@ protected:
 	Cairo::RefPtr<Cairo::Context> m_cairo {};
 
 public:
-	Visualize(const core::Config &config,
-	          const core::DeviceInfo &info,
-	          const std::optional<const ipts::Metadata> &metadata)
-		: core::Application(config, info, metadata) {};
+	Visualize(const core::Config &config, const core::DeviceInfo &info)
+		: core::Application(config, info) {};
 
-	void on_contacts(const std::vector<contacts::Contact<f64>> & /* unused */) override
+	void on_touch(const std::vector<contacts::Contact<f64>> & /* unused */) override
 	{
 		const Eigen::Index cols = m_heatmap.cols();
 		const Eigen::Index rows = m_heatmap.rows();
@@ -70,7 +68,7 @@ public:
 		}
 	}
 
-	void on_stylus(const ipts::StylusData &data) override
+	void on_stylus(const ipts::samples::Stylus &data) override
 	{
 		if (!data.proximity) {
 			m_history.clear();
@@ -216,7 +214,7 @@ public:
 		if (m_history.empty())
 			return;
 
-		const ipts::StylusData &stylus = m_history.back();
+		const ipts::samples::Stylus &stylus = m_history.back();
 
 		if (!stylus.proximity)
 			return;
@@ -289,8 +287,8 @@ public:
 			return;
 
 		for (usize i = 0; i < m_history.size() - 1; i++) {
-			const ipts::StylusData &from = m_history[i];
-			const ipts::StylusData &to = m_history[i + 1];
+			const ipts::samples::Stylus &from = m_history[i];
+			const ipts::samples::Stylus &to = m_history[i + 1];
 
 			if (!from.proximity || !to.proximity)
 				continue;

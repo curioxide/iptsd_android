@@ -3,7 +3,8 @@
 #include "calibrate.hpp"
 
 #include <common/types.hpp>
-#include <core/linux/device-runner.hpp>
+#include <core/linux/device/hidraw.hpp>
+#include <core/linux/runner.hpp>
 #include <core/linux/signal-handler.hpp>
 
 #include <CLI/CLI.hpp>
@@ -21,18 +22,18 @@ namespace {
 
 int run(const int argc, const char **argv)
 {
-	CLI::App app {"Utility for measuring your finger size and calibrating iptsd."};
+	CLI::App app {"Utility for measuring your finger size and calibrating iptsd"};
 
 	std::filesystem::path path {};
 	app.add_option("DEVICE", path)
-		->description("The hidraw device node of the touchscreen.")
+		->description("The hidraw device node of the touchscreen")
 		->type_name("FILE")
 		->required();
 
 	CLI11_PARSE(app, argc, argv);
 
 	// Create a calibration application that reads from a device.
-	core::linux::DeviceRunner<Calibrate> calibrate {path};
+	core::linux::Runner<Calibrate, core::linux::device::Hidraw> calibrate {path};
 
 	const auto _sigterm = core::linux::signal<SIGTERM>([&](int) { calibrate.stop(); });
 	const auto _sigint = core::linux::signal<SIGINT>([&](int) { calibrate.stop(); });

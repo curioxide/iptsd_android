@@ -4,24 +4,33 @@
 #define IPTSD_CORE_GENERIC_DEVICE_HPP
 
 #include <common/types.hpp>
+#include <ipts/device.hpp>
+#include <ipts/metadata.hpp>
+
+#include <optional>
 
 namespace iptsd::core {
 
 /*
  * Contains informations about the device that produced the data
  * that is processed by an application.
- *
- * This struct is packed so that it can be part of binary dumps.
- * It is padded manually to keep compatibility with older files.
  */
-struct [[gnu::packed]] DeviceInfo {
-	u16 vendor;
-	u16 product;
-	u8 padding[4]; // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
-	u64 buffer_size;
-};
+struct DeviceInfo {
+	u16 vendor = 0;
+	u16 product = 0;
+	ipts::Device::Type type {};
+	std::optional<ipts::Metadata> meta = std::nullopt;
 
-static_assert(sizeof(DeviceInfo) == 16);
+	[[nodiscard]] bool is_touchscreen() const
+	{
+		return this->type == ipts::Device::Type::Touchscreen;
+	}
+
+	[[nodiscard]] bool is_touchpad() const
+	{
+		return this->type == ipts::Device::Type::Touchpad;
+	}
+};
 
 } // namespace iptsd::core
 

@@ -5,7 +5,8 @@
 #include <common/casts.hpp>
 #include <common/chrono.hpp>
 #include <common/types.hpp>
-#include <core/linux/file-runner.hpp>
+#include <core/linux/device/file.hpp>
+#include <core/linux/runner.hpp>
 #include <core/linux/signal-handler.hpp>
 
 #include <CLI/CLI.hpp>
@@ -24,24 +25,24 @@ namespace {
 
 int run(const int argc, const char **argv)
 {
-	CLI::App app {"Utility for performance testing of iptsd."};
+	CLI::App app {"Utility for performance testing of iptsd"};
 
 	std::filesystem::path path {};
 	app.add_option("DATA", path)
-		->description("A binary data file containing touch reports.")
+		->description("A binary data file containing touch reports")
 		->type_name("FILE")
 		->required();
 
 	usize runs {};
 	app.add_option("RUNS", runs)
-		->description("How many times data will be processed.")
+		->description("How many times data will be processed")
 		->check(CLI::PositiveNumber)
 		->default_val(10);
 
 	CLI11_PARSE(app, argc, argv);
 
 	// Create a performance testing application that reads from a file.
-	core::linux::FileRunner<Perf> perf {path};
+	core::linux::Runner<Perf, core::linux::device::File> perf {path};
 
 	const auto _sigterm = core::linux::signal<SIGTERM>([&](int) { perf.stop(); });
 	const auto _sigint = core::linux::signal<SIGINT>([&](int) { perf.stop(); });

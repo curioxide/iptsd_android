@@ -3,7 +3,8 @@
 #include "visualize-sdl.hpp"
 
 #include <common/types.hpp>
-#include <core/linux/device-runner.hpp>
+#include <core/linux/device/hidraw.hpp>
+#include <core/linux/runner.hpp>
 #include <core/linux/signal-handler.hpp>
 
 #include <CLI/CLI.hpp>
@@ -21,18 +22,18 @@ namespace {
 
 int run(const int argc, const char **argv)
 {
-	CLI::App app {"Utility for rendering touchscreen inputs in real time."};
+	CLI::App app {"Utility for rendering touchscreen inputs in real time"};
 
 	std::filesystem::path path {};
 	app.add_option("DEVICE", path)
-		->description("The hidraw device node of the touchscreen.")
+		->description("The hidraw device node of the touchscreen")
 		->type_name("FILE")
 		->required();
 
 	CLI11_PARSE(app, argc, argv);
 
 	// Create a plotting application that reads from a file.
-	core::linux::DeviceRunner<VisualizeSDL> visualize {path};
+	core::linux::Runner<VisualizeSDL, core::linux::device::Hidraw> visualize {path};
 
 	const auto _sigterm = core::linux::signal<SIGTERM>([&](int) { visualize.stop(); });
 	const auto _sigint = core::linux::signal<SIGINT>([&](int) { visualize.stop(); });

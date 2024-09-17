@@ -10,14 +10,12 @@
 #include <common/types.hpp>
 #include <core/generic/config.hpp>
 #include <core/generic/device.hpp>
-#include <ipts/data.hpp>
 
 #include <SDL.h>
 #include <cairomm/cairomm.h>
 #include <gsl/gsl>
 
 #include <cstring>
-#include <optional>
 
 namespace iptsd::apps::visualization {
 
@@ -35,10 +33,8 @@ private:
 	clock::time_point m_last_draw {};
 
 public:
-	VisualizeSDL(const core::Config &config,
-	             const core::DeviceInfo &info,
-	             const std::optional<const ipts::Metadata> &metadata)
-		: Visualize(config, info, metadata)
+	VisualizeSDL(const core::Config &config, const core::DeviceInfo &info)
+		: Visualize(config, info)
 	{
 		SDL_Init(SDL_INIT_VIDEO);
 	}

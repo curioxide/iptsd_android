@@ -11,7 +11,6 @@
 #include <core/generic/application.hpp>
 #include <core/generic/config.hpp>
 #include <core/generic/device.hpp>
-#include <ipts/data.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -20,7 +19,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -44,10 +42,8 @@ private:
 	f64 m_diagonal;
 
 public:
-	Calibrate(const core::Config &config,
-	          const core::DeviceInfo &info,
-	          const std::optional<const ipts::Metadata> &metadata)
-		: core::Application(config, info, metadata),
+	Calibrate(const core::Config &config, const core::DeviceInfo &info)
+		: core::Application(config, info),
 		  m_diagonal {std::hypot(config.width, config.height)} {};
 
 	void on_start() override
@@ -57,7 +53,7 @@ public:
 		spdlog::info("Aspect:  0.000 (Min: 0.000; Max: 0.000)");
 	}
 
-	void on_contacts(const std::vector<contacts::Contact<f64>> &contacts) override
+	void on_touch(const std::vector<contacts::Contact<f64>> &contacts) override
 	{
 		// Calculate size and aspect of all stable contacts
 		for (const contacts::Contact<f64> &contact : contacts) {
@@ -112,9 +108,14 @@ public:
 		const clock::duration now = clock::now().time_since_epoch();
 		usize unix = chrono::duration_cast<seconds<usize>>(now).count();
 
-		const std::string no_slack = fmt::format("iptsd_calib_{}_0mm.conf", unix);
-		const std::string some_slack = fmt::format("iptsd_calib_{}_2mm.conf", unix);
-		const std::string much_slack = fmt::format("iptsd_calib_{}_10mm.conf", unix);
+		const u16 vendor = m_info.vendor;
+		const u16 product = m_info.product;
+
+		const std::string devtime = fmt::format("{:04X}_{:04X}_{}", vendor, product, unix);
+
+		const std::string no_slack = fmt::format("iptsd_calib_{}_0mm.conf", devtime);
+		const std::string some_slack = fmt::format("iptsd_calib_{}_2mm.conf", devtime);
+		const std::string much_slack = fmt::format("iptsd_calib_{}_10mm.conf", devtime);
 
 		this->write_file(no_slack, 0.0);
 		this->write_file(some_slack, 0.1);
@@ -122,19 +123,22 @@ public:
 
 		// clang-format off
 
+		const std::string filename =
+			fmt::format("{}/91-calibration-{:04X}-{:04X}.conf", common::buildopts::ConfigDir, vendor, product);
+
 		spdlog::info("");
 		spdlog::info("To finish the calibration process, apply the determined values to iptsd.");
 		spdlog::info("Three config snippets have been generated for you in the current directory.");
 		spdlog::info("Run the displayed to command to install them, and restart iptsd.");
 		spdlog::info("");
 		spdlog::info("Recommended:");
-		spdlog::info("    sudo cp {} {}/90-calibration.conf", some_slack, common::buildopts::ConfigDir);
+		spdlog::info("    sudo cp {} {}", some_slack, filename);
 		spdlog::info("");
 		spdlog::info("If iptsd misses inputs:");
-		spdlog::info("    sudo cp {} {}/90-calibration.conf", much_slack, common::buildopts::ConfigDir);
+		spdlog::info("    sudo cp {} {}", much_slack, filename);
 		spdlog::info("");
 		spdlog::info("For manual finetuning:");
-		spdlog::info("    sudo cp {} {}/90-calibration.conf", no_slack, common::buildopts::ConfigDir);
+		spdlog::info("    sudo cp {} {}", no_slack, filename);
 		spdlog::info("");
 		spdlog::warn("Running these commands can permanently overwrite a previous calibration!");
 
@@ -189,6 +193,10 @@ public:
 		writer << "# Samples: " << fmt::format("{}", size) << "\n";
 		writer << "# Slack:   " << fmt::format("{:.3f}", slack) << "\n";
 		writer << "#\n";
+		writer << "\n";
+		writer << "[Device]\n";
+		writer << "Vendor = " << fmt::format("0x{:04X}", m_info.vendor) << "\n";
+		writer << "Product = " << fmt::format("0x{:04X}", m_info.product) << "\n";
 		writer << "\n";
 		writer << "[Contacts]\n";
 		writer << "SizeMin = " << fmt::format("{:.3f}", size_min) << "\n";

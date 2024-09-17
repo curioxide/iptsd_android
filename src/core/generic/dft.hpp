@@ -4,10 +4,13 @@
 #define IPTSD_CORE_GENERIC_DFT_HPP
 
 #include "config.hpp"
+#include "device.hpp"
 
 #include <common/casts.hpp>
-#include <ipts/data.hpp>
+#include <ipts/metadata.hpp>
 #include <ipts/protocol/dft.hpp>
+#include <ipts/samples/dft.hpp>
+#include <ipts/samples/stylus.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -19,10 +22,10 @@ namespace iptsd::core {
 class DftStylus {
 private:
 	Config m_config;
-	std::optional<const ipts::Metadata> m_metadata;
+	DeviceInfo m_info;
 
 	// The current state of the DFT stylus.
-	ipts::StylusData m_stylus;
+	ipts::samples::Stylus m_stylus;
 
 	i32 m_real = 0;
 	i32 m_imag = 0;
@@ -43,16 +46,16 @@ private:
 	std::optional<bool> m_mppv2_in_contact = std::nullopt;
 
 public:
-	DftStylus(Config config, const std::optional<const ipts::Metadata> &metadata)
+	DftStylus(Config config, const DeviceInfo &info)
 		: m_config {std::move(config)},
-		  m_metadata {metadata} {};
+		  m_info {info} {};
 
 	/*!
 	 * Loads a DFT window and calculates stylus properties from it.
 	 *
 	 * @param[in] dft The dft window received from the IPTS hardware.
 	 */
-	void input(const ipts::DftWindow &dft)
+	void input(const ipts::samples::DftWindow &dft)
 	{
 		switch (dft.type) {
 		case ipts::protocol::dft::Type::Position:
@@ -81,7 +84,7 @@ public:
 	 *
 	 * @return An object describing the current position and state of the DFT based stylus.
 	 */
-	[[nodiscard]] const ipts::StylusData &get_stylus() const
+	[[nodiscard]] const ipts::samples::Stylus &get_stylus() const
 	{
 		return m_stylus;
 	}
@@ -92,7 +95,7 @@ private:
 	 *
 	 * @param[in] dft The DFT window (with type == Type::Position)
 	 */
-	void handle_position(const ipts::DftWindow &dft)
+	void handle_position(const ipts::samples::DftWindow &dft)
 	{
 		if (dft.x.size() <= 1) {
 			this->lift();
@@ -108,9 +111,9 @@ private:
 		u8 width = dft.width;
 		u8 height = dft.height;
 
-		if ((width == 0 || height == 0) && m_metadata.has_value()) {
-			width = casts::to<u8>(m_metadata->dimensions.columns);
-			height = casts::to<u8>(m_metadata->dimensions.rows);
+		if ((width == 0 || height == 0) && m_info.meta.has_value()) {
+			width = m_info.meta->columns;
+			height = m_info.meta->rows;
 		}
 
 		m_group = dft.group;
@@ -178,7 +181,7 @@ private:
 	 *
 	 * @param[in] dft The DFT window (with type == Type::Button)
 	 */
-	void handle_button(const ipts::DftWindow &dft)
+	void handle_button(const ipts::samples::DftWindow &dft)
 	{
 		if (dft.x.empty())
 			return;
@@ -216,7 +219,7 @@ private:
 	 *
 	 * @param[in] dft The DFT window (with type == Type::Pressure)
 	 */
-	void handle_pressure(const ipts::DftWindow &dft)
+	void handle_pressure(const ipts::samples::DftWindow &dft)
 	{
 		if (dft.x.size() < ipts::protocol::dft::PRESSURE_ROWS)
 			return;
@@ -238,7 +241,7 @@ private:
 	 * only be used for MPP v2 pens. The eraser is still obtained from the
 	 * phase using the button frame.
 	 */
-	void handle_dft_binary_mpp_2(const ipts::DftWindow &dft)
+	void handle_dft_binary_mpp_2(const ipts::samples::DftWindow &dft)
 	{
 		if (dft.x.size() <= 5) { // not sure if this can happen?
 			return;
@@ -272,7 +275,7 @@ private:
 	 * Determines whether the pen is making contact with the screen, it can
 	 * only be used for MPP v2 pens.
 	 */
-	void handle_position_mpp_2(const ipts::DftWindow &dft)
+	void handle_position_mpp_2(const ipts::samples::DftWindow &dft)
 	{
 		// Clearing the state in case we can't determine it.
 		m_mppv2_in_contact = std::nullopt;
@@ -346,7 +349,8 @@ private:
 		return row.first + maxi + std::clamp(d, mind, maxd);
 	}
 
-	[[nodiscard]] f64 interpolate_frequency(const ipts::DftWindow &dft, const u8 rows) const
+	[[nodiscard]] f64 interpolate_frequency(const ipts::samples::DftWindow &dft,
+	                                        const u8 rows) const
 	{
 		if (rows < 3)
 			return casts::to<f64>(NAN);

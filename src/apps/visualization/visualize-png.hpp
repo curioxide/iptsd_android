@@ -8,14 +8,12 @@
 #include <common/casts.hpp>
 #include <core/generic/config.hpp>
 #include <core/generic/device.hpp>
-#include <ipts/data.hpp>
 
 #include <cairomm/cairomm.h>
 #include <gsl/gsl>
 
 #include <cmath>
 #include <filesystem>
-#include <optional>
 #include <utility>
 
 namespace iptsd::apps::visualization {
@@ -30,9 +28,8 @@ private:
 public:
 	VisualizePNG(const core::Config &config,
 	             const core::DeviceInfo &info,
-	             const std::optional<const ipts::Metadata> &metadata,
 	             std::filesystem::path output)
-		: Visualize(config, info, metadata),
+		: Visualize(config, info),
 		  m_output {std::move(output)} {};
 
 	void on_start() override

@@ -24,23 +24,28 @@ public:
 	f64 width = 0;
 	f64 height = 0;
 
-	// [Touch]
-	bool touch_disable = false;
-	bool touch_disable_on_palm = false;
-	bool touch_disable_on_stylus = false;
-	f64 touch_overshoot = 0.5;
+	// [Touchscreen]
+	bool touchscreen_disable = false;
+	bool touchscreen_disable_on_palm = false;
+	bool touchscreen_disable_on_stylus = false;
+	f64 touchscreen_overshoot = 0.5;
+
+	// [Touchpad]
+	bool touchpad_disable = false;
+	bool touchpad_disable_on_palm = false;
+	f64 touchpad_overshoot = 0.5;
 
 	// [Contacts]
 	std::string contacts_neutral = "mode";
 	f64 contacts_neutral_value = 0;
-	f64 contacts_activation_threshold = 24;
-	f64 contacts_deactivation_threshold = 20;
+	f64 contacts_activation_threshold = 40;
+	f64 contacts_deactivation_threshold = 36;
 	f64 contacts_size_thresh_min = 0.1;
 	f64 contacts_size_thresh_max = 0.5;
 	f64 contacts_position_thresh_min = 0.04;
 	f64 contacts_position_thresh_max = 2;
 	f64 contacts_orientation_thresh_min = 1;
-	f64 contacts_orientation_thresh_max = 5;
+	f64 contacts_orientation_thresh_max = 15;
 	f64 contacts_size_min = 0.2;
 	f64 contacts_size_max = 2;
 	f64 contacts_aspect_min = 1;
